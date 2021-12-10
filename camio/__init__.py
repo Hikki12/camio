@@ -4,20 +4,27 @@ from threading import Thread, Event
 from sevent import Emitter
 
 
-class CameraDevice(Emitter):
+class Camera(Emitter):
     """Camera device object, based on threading.
 
     :param src: device source
     :param name: device name
     :param reconnectDelay: wait time for try reopen camera device
     :param fps: frames per second.
+
+    Example usage::
+
+        camera = Camera(src=0)
+        camera.on('frame-ready', lambda frame: print('frame is ready:', type(frame)))
+
     """
-    def __init__(self, src=0, name='default', reconnectDelay=2, fps=10, *args, **kwargs):
-        super(CameraDevice, self).__init__()
+    def __init__(self, src=0, name='default', reconnectDelay=2, fps=10, verbose=False, *args, **kwargs):
+        super(Camera, self).__init__()
         self.src = src
         self.name = name
         self.frame = None
         self.fps = fps
+        self.verbose = verbose
         self.delay = 1 / self.fps 
         self.defaultDelay = self.delay
         self.reconnectDelay = reconnectDelay
@@ -45,6 +52,8 @@ class CameraDevice(Emitter):
         try:
             self.device = cv2.VideoCapture(self.src)
         except Exception as e:
+            if self.verbose:
+                print(f"{self.name} : {e}")
             self.device = None
 
     def reconnect(self):
@@ -56,6 +65,8 @@ class CameraDevice(Emitter):
             time.sleep(self.delay)
 
         if self.hasDevice():
+            if self.verbose:
+                print(f"{self.name} is open!")
             self.delay = self.defaultDelay
 
     def resume(self):
@@ -77,10 +88,12 @@ class CameraDevice(Emitter):
             if status:
                 self.frame = frame
                 self.emit('frame-ready', frame)
+                self.emit('frame-available', self.name)
             else:
                 self.frame = None      
         except Exception as e:
-            print(e)
+            if self.verbose:
+                print(f"{self.name} :  {e}")
             self.frame = None    
 
     def run(self):
@@ -112,12 +125,16 @@ class CameraDevice(Emitter):
         self.delay = self.defaultDelay
 
 
-class MultipleCameras:
-    def __init__(self,devices={}, *args, **kwargs):
+class Cameras:
+    """A class for manage multiple threaded cameras.
+
+    :param devices: a dict with names and sources of the camera devices.
+    """
+    def __init__(self, devices:dict={}, *args, **kwargs):
         self.devices = {}
         if len(devices) > 0:
             for name, src in devices.items():
-                self.devices[name] = CameraDevice(src, name=name, *args, **kwargs) 
+                self.devices[name] = Camera(src, name=name, *args, **kwargs) 
 
     def __getitem__(self, name):
         return self.devices[name]
@@ -126,54 +143,90 @@ class MultipleCameras:
         return len(self.devices)
 
     def startAll(self):
+        """It starts all camera devices on the devices dict."""
         for device in self.devices.values():
             device.start()
 
     def startOnly(self, deviceName:str="default"):
+        """It start only a specific device.
+        
+        :param deviceName: camera device name.
+        """
         if deviceName in self.devices:
             device = self.devices[deviceName]
             device.start()
 
     def stopAll(self):
+        """It stops all camera devices."""
         for device in self.devices.values():
             device.stop()
     
     def stopOnly(self, deviceName:str="default"):
+        """It stops an specific camera device.
+        
+        :param deviceName: camera device name.
+        """
         if deviceName in self.devices:
             device = self.devices[deviceName]
             device.stop()
     
-    def getDevice(self, deviceName="default"):
+    def getDevice(self, deviceName:str="default"):
+        """It returns a specific camera device.
+
+        :param deviceName: camera device name.
+        """
         if deviceName in self.devices:
             return self.devices[deviceName]
         
     def pauseOnly(self, deviceName="default"):
+        """It pauses a specific camera device.
+
+        :param deviceName: camera device name.
+        """
         if deviceName in self.devices:
             device = self.devices[deviceName]
             device.pause()
 
     def pauseAll(self):
+        """It pauses all camera devices."""
         for device in self.devices.values():
             device.pause()
     
     def resumeAll(self):
+        """It resumes all camera devices."""
         for device in self.devices.values():
             device.resume()
 
     def resumeOnly(self, deviceName="default"):
+        """It resumes a specific camera device.
+
+        :param deviceName: camera device name.
+        """
         if deviceName in self.devices:
             device = self.devices[deviceName]
             device.resume()    
 
-    def setSpeedOnly(self, deviceName="default", fps=10):
+    def setSpeedOnly(self, deviceName:str="default", fps:int=10):
+        """It updates the FPS captured by a specific devices.
+        
+        :param deviceName: camera device name.
+        """
         if deviceName in self.devices:
-            self.devices[deviceName] = fps
+            self.devices[deviceName].setSpeed(fps)
     
     def getAllFrames(self):
-        frames = [device.getFrame() for device in self.devices.values]
+        """It returns a list with all camera current frames."""
+        frames = [device.getFrame() for device in self.devices.values()]
         return frames
 
     def getFrameOf(self, deviceName="default"):
+        """It returns a specific frame of a camera device.
+
+        :param deviceName: camera device name.
+        """
         if deviceName in self.devices:
             return self.devices[deviceName].getFrame()
 
+    def on(self, *args, **kwargs):
+        for device in self.devices.values():
+            device.on(*args, **kwargs)

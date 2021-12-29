@@ -1,7 +1,8 @@
 import cv2
 import time
+import numpy as np
 from threading import Thread, Event
-from sevent import Emitter
+from .sevent import Emitter
 
 
 class Camera(Emitter):
@@ -18,7 +19,7 @@ class Camera(Emitter):
         camera.on('frame-ready', lambda frame: print('frame is ready:', type(frame)))
 
     """
-    def __init__(self, src=0, name='default', reconnectDelay=2, fps=10, verbose=False, *args, **kwargs):
+    def __init__(self, src=0, name='default', reconnectDelay=5, fps=10, verbose=False, size=None, classic=False, *args, **kwargs):
         super(Camera, self).__init__()
         self.src = src
         self.name = name
@@ -28,18 +29,45 @@ class Camera(Emitter):
         self.delay = 1 / self.fps 
         self.defaultDelay = self.delay
         self.reconnectDelay = reconnectDelay
+        self.size = size
+        self.background = self.createBackground()
+
+        self.classic = classic
         self.device = None
         self.thread = Thread(target=self.run, args=())
         self.runningEvent = Event()
         self.pauseEvent = Event()
+        self.readEvent = Event()
         self.resume()
 
     def __del__(self):
         self.stop()
 
-    def start(self):
-        """It starts the read loop."""
+    def createBackground(self, text='Device not available'):
+        size = self.size
+        if self.size is None:
+            size = (320, 240)
+        w, h = size
+        background = np.zeros(self.size)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        color = [255, 255, 255]
+        fontScale = 1
+        thickness = 1
+        textsize = cv2.getTextSize(text, font, fontScale, thickness)[0]
+        tw, th = textsize
+        origin = (int((w - tw) / 2), int((h - th) / 2))
+        background = cv2.putText(background, text, origin, font, fontScale, color, thickness)
+        return background
+
+    def start(self, classic=False):
+        """It starts the read loop.
+
+        :param classic: start camera device disabling all event/emit functions?
+        """
         self.thread.start()
+        if self.classic:
+            self.disableEvents()
+        return self
     
     def hasDevice(self):
         """It checks if a camera device is available."""
@@ -49,25 +77,12 @@ class Camera(Emitter):
 
     def loadDevice(self):
         """It loads a camera device."""
-        try:
-            self.device = cv2.VideoCapture(self.src)
-        except Exception as e:
-            if self.verbose:
-                print(f"{self.name} : {e}")
-            self.device = None
+        self.device = cv2.VideoCapture(self.src)
 
     def reconnect(self):
         """It tries to reconnect with the camera device."""
-
-        if not self.hasDevice():
-            self.delay = self.reconnectDelay
-            self.loadDevice()
-            time.sleep(self.delay)
-
-        if self.hasDevice():
-            if self.verbose:
-                print(f"{self.name} is open!")
-            self.delay = self.defaultDelay
+        self.readEvent.set()
+        self.loadDevice()
 
     def resume(self):
         """It resumes the read loop."""
@@ -81,20 +96,30 @@ class Camera(Emitter):
         """It pauses or resume the read loop."""
         self.pauseEvent.wait()
 
+    def preprocess(self, frame):
+        if self.size is not None:
+            frame = cv2.resize(frame, self.size)
+        return frame
+
     def readFrame(self):
         """It tries to read a frame from the camera."""
-        try:
-            status, frame = self.device.read()
-            if status:
-                self.frame = frame
-                self.emit('frame-ready', frame)
-                self.emit('frame-available', self.name)
-            else:
-                self.frame = None      
-        except Exception as e:
-            if self.verbose:
-                print(f"{self.name} :  {e}")
-            self.frame = None    
+        self.readEvent.clear()
+        status, frame = self.device.read()
+        if status:
+            frame = self.preprocess(frame)
+            self.frame = frame
+            self.emit('frame-ready', frame)
+            self.emit('frame-available', self.name)
+        else:
+            self.frame = self.background  
+        self.readEvent.set()    
+
+    def read(self):
+        if self.hasDevice():
+            if self.readEvent.wait(timeout=0.1 * self.delay):
+                return self.frame
+        else:
+            return self.background
 
     def run(self):
         """It runs the read loop."""
@@ -103,16 +128,16 @@ class Camera(Emitter):
         while self.runningEvent.is_set():
             if self.hasDevice():
                 self.readFrame()
-                time.sleep(self.delay)
             else:
-                self.reconnect()     
+                self.reconnect()
+            time.sleep(self.delay)     
             self.needAPause()
+        self.device.release()
 
     def stop(self):
         """It stops the read loop."""
         self.runningEvent.clear()
-        if self.hasDevice():
-            self.device.release()
+        self.thread.join()
 
     def getFrame(self):
         """It returns the frame."""
@@ -214,9 +239,12 @@ class Cameras:
         if deviceName in self.devices:
             self.devices[deviceName].setSpeed(fps)
     
-    def getAllFrames(self):
+    def getAllFrames(self, asDict=True):
         """It returns a list with all camera current frames."""
-        frames = [device.getFrame() for device in self.devices.values()]
+        if not asDict:
+            frames = [device.getFrame() for device in self.devices.values()]
+        else:
+            frames = {device.src: device.getFrame() for device in self.devices.values()}
         return frames
 
     def getFrameOf(self, deviceName="default"):

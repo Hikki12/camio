@@ -3,7 +3,7 @@ from camio import Camera
 import time
 
 
-camera = Camera(src='http://192.168.100.146:3000/video/mjpeg', fps=10, size=(320, 240), classic=True)
+camera = Camera(src=0, fps=30, size=None, emitterIsEnabled=False)
 camera.start()
 
 while True:
@@ -12,13 +12,14 @@ while True:
 
     if image is not None:
         cv2.imshow('image', image)
+        print(image.shape)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
     t1 = time.time()
     dt = t1 - t0
-    print(dt)
+    # print(dt)
 
 camera.stop()
 cv2.destroyAllWindows()

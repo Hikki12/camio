@@ -15,6 +15,7 @@ def readFrames(device):
     global frames, camerasAdmin
     frames[device] = camerasAdmin.getFrameOf(device)
 
+
 # Setup Callbacks
 camerasAdmin.on('frame-available', readFrames)
 

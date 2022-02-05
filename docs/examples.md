@@ -1,15 +1,20 @@
+# Examples
+
+## Single camera
+```python
+import time
 import cv2
 from camio import Camera
 
 
 camera = Camera(
-            src=0,
-            fps=30,
-            size=None,
+            src=0, 
+            fps=30, 
+            size=None, 
             emitterIsEnabled=False,
             queueModeEnabled=False,
             backgroundIsEnabled=True,
-)
+        )
 
 camera.start()
 
@@ -24,3 +29,4 @@ while True:
 
 camera.stop()
 cv2.destroyAllWindows()
+```

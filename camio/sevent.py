@@ -5,12 +5,11 @@ Taken from: https://github.com/Hikki12/sevent
 
 class Emitter:
     """This class implements a simple event emitter.
-    
+
     Example usage::
 
-    
         callback = lambda message: print(message)
-        event = Emitter() 
+        event = Emitter()
         event.on('ready', callback)
         event.emit('ready', 'Finished!')
     """
@@ -31,7 +30,7 @@ class Emitter:
         else:
             self.callbacks[eventName] = [callback]
 
-    def emit(self, eventName:str="", *args, **kwargs):
+    def emit(self, eventName: str = "", *args, **kwargs):
         """It emits an event, and calls the corresponding callback function.
         :param eventName: name of the event.
         """
@@ -44,7 +43,7 @@ class Emitter:
                         else:
                             callback()
 
-    def clearEvent(self, eventName:str):
+    def clearEvent(self, eventName: str):
         """It clears the callbacks associated to a specific event name.
         :param eventName: name of the event.
         """
@@ -58,7 +57,7 @@ class Emitter:
     def disableEvents(self):
         """It disables emit function."""
         self.emitterIsEnabled = False
-    
+
     def enableEvents(self):
         """It enables emit function."""
         self.emitterIsEnabled = True

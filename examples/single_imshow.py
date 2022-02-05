@@ -35,7 +35,6 @@ while True:
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
-    
     t1 = time.time()
     dt = t1 - t0
     # print(f'dt: {dt: .4f} : {1/dt: .2f}')

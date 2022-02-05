@@ -1,6 +1,5 @@
 import cv2
 from camio import Cameras
-import time
 
 
 camerasAdmin = Cameras(devices={
@@ -13,15 +12,14 @@ camerasAdmin.startAll()
 while True:
     frames = camerasAdmin.getAllFrames(asDict=False)
     try:
-        frame = cv2.hconcat(frames)  
+        frame = cv2.hconcat(frames)
         cv2.imshow('frame', frame)
-    except:
-        pass
+    except Exception as e:
+        print(e)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
-        break   
+        break
 
-    # time.sleep(.1)
 
 camerasAdmin.stopAll()
 cv2.destroyAllWindows()

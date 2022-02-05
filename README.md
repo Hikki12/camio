@@ -1,5 +1,5 @@
 # Python-CamIO
-
+![docs](https://img.shields.io/badge/Docs-Mkdocs-blue) <br>
 A library to handle multiple cameras with opencv, based on threading and callbacks.
 
 
